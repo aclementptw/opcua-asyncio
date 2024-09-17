@@ -11,8 +11,7 @@ from cryptography import x509
 from pathlib import Path
 from threading import Thread, Condition
 import logging
-from typing import Any, Dict, Iterable, List, Sequence, Set, Tuple, Type, Union, Optional, overload
-
+from typing import Any, Callable, Dict, Iterable, List, Sequence, Set, Tuple, Type, Union, Optional, overload
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -249,9 +248,12 @@ class Client:
     def application_uri(self, value):
         self.aio_obj.application_uri = value
 
-    @syncmethod
     def connect(self) -> None:
-        pass
+        if not self.tloop.is_alive():
+            self.tloop = ThreadLoop()
+            self.tloop.start()
+            self.close_tloop = True
+        self.tloop.post(self.aio_obj.connect())
 
     def disconnect(self) -> None:
         try:
@@ -260,9 +262,12 @@ class Client:
             if self.close_tloop:
                 self.tloop.stop()
 
-    @syncmethod
     def connect_sessionless(self) -> None:
-        pass
+        if not self.tloop.is_alive():
+            self.tloop = ThreadLoop()
+            self.tloop.start()
+            self.close_tloop = True
+        self.tloop.post(self.aio_obj.connect_sessionless())
 
     def disconnect_sessionless(self) -> None:
         try:
@@ -271,9 +276,12 @@ class Client:
             if self.close_tloop:
                 self.tloop.stop()
 
-    @syncmethod
     def connect_socket(self) -> None:
-        pass
+        if not self.tloop.is_alive():
+            self.tloop = ThreadLoop()
+            self.tloop.start()
+            self.close_tloop = True
+        self.tloop.post(self.aio_obj.connect_sessionless())
 
     def disconnect_socket(self) -> None:
         try:
@@ -592,9 +600,12 @@ class Server:
     def get_namespace_array(self):
         pass
 
-    @syncmethod
     def start(self):
-        pass
+        if not self.tloop.is_alive():
+            self.tloop = ThreadLoop()
+            self.tloop.start()
+            self.close_tloop = True
+        self.tloop.post(self.aio_obj.start())
 
     def stop(self):
         self.tloop.post(self.aio_obj.stop())
@@ -634,6 +645,14 @@ class Server:
     @syncmethod
     def write_attribute_value(self, nodeid, datavalue, attr=ua.AttributeIds.Value):
         pass
+
+    def set_attribute_value_callback(
+        self,
+        nodeid: ua.NodeId,
+        callback: Callable[[ua.NodeId, ua.AttributeIds], ua.DataValue],
+        attr=ua.AttributeIds.Value
+    ) -> None:
+        self.aio_obj.set_attribute_value_callback(nodeid, callback, attr)
 
     def create_subscription(self, period, handler):
         coro = self.aio_obj.create_subscription(period, _SubHandler(self.tloop, handler))
